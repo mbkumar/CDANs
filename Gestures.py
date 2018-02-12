@@ -8,7 +8,7 @@ import csv
 import numpy as np
 import time
 
-from MyLSTM import LSTMRNN
+#from MyLSTM import LSTMRNN
 from theano import *
 import theano.tensor as T
 from keras.models import Sequential, model_from_json
