@@ -7,7 +7,7 @@ Created on Fri Jul 01 10:15:00 2016
 
 from keras.models import Sequential, Model
 from keras.layers import merge, Input
-from keras.layers.core import Merge, Dense, Masking, Dropout, RepeatVector
+from keras.layers import Merge, Dense, Masking, Dropout, RepeatVector
 from keras.layers.wrappers import TimeDistributed
 from keras.layers.recurrent import LSTM, GRU
 from keras.callbacks import EarlyStopping, ModelCheckpoint
@@ -91,7 +91,7 @@ def sortData(data, W, mask = False):
     if mask:
         mask = getMask(data, keepdims = True)
     else:
-        mask = np.ones_like(data, dtype == 'bool')
+        mask = np.ones_like(data, dtype='bool')
     W = W[::-1, :].T #place primary normal vector in last column
     scores = np.dot(data, W).reshape((-1, data.shape[-2], data.shape[-1]))
     #masked values are pushed to the end
@@ -394,14 +394,14 @@ def makePMEQModel(input, numClasses, fHiddenSize = 11,
                     W_regularizer=l2(l2Reg))(model)
     return model
 
-def makePostureCDANModel(input, numClasses, convNetHiddenSize = 11, 
-                         convNetOutSize = 11, deepNetSize = 11,
-                         numCNNLayers = 2, numDeepLayers = 3,
-                         activation='relu', l2Reg = 0.0001,
-                         dropoutH = 0,
-                         stripSoftmax=False, poolingMode = 'ave',
-                         masking = True, maxout = 1, 
-                         convNetResidual=False, deepResidual=False):
+def make_posture_cdan_model(input, num_classes, conv_net_hidden_size=11,
+                            conv_net_out_size=11, deep_net_size=11,
+                            num_cnn_layers=2, num_deep_layers=3,
+                            activation='relu', l2_reg = 0.0001,
+                            dropout_h = 0,
+                            strip_softmax=False, pooling_mode='ave',
+                            masking=True, maxout=1,
+                            conv_net_residual=False, deep_residual=False):
     """
     Make a convolutional deep averaging network.
     """
@@ -409,59 +409,62 @@ def makePostureCDANModel(input, numClasses, convNetHiddenSize = 11,
         maxout = list(maxout)
     except:
         maxout = [maxout, maxout]
-    deepMaxout = maxout[1]
+    deep_maxout = maxout[1]
     maxout = maxout[0]
     model = input
     layers = []
-    #make embedding function layer by layer
-    for i in range(numCNNLayers):
-        layerInput = Input((input._keras_shape[2] if i == 0 else convNetHiddenSize,))
-        layer = Maxout(layerInput._keras_shape[1:],
-                       Dense(output_dim=(convNetHiddenSize if i < (numCNNLayers-1) else convNetOutSize)*maxout, 
+
+    # make embedding function layer by layer
+    for i in range(num_cnn_layers):
+        layer_input = Input((input._keras_shape[2] if i == 0 else conv_net_hidden_size,))
+        layer = Maxout(layer_input._keras_shape[1:],
+                       Dense(output_dim=(conv_net_hidden_size if i < (num_cnn_layers-1) else conv_net_out_size)*maxout,
                              activation=activation, 
-                             W_regularizer=l2(l2Reg)), maxout)(layerInput)
-        if dropoutH:
-            layer = Dropout(dropoutH)(layer)
-        layer = Model(layerInput, layer)
+                             W_regularizer=l2(l2_reg)), maxout)(layer_input)
+        if dropout_h:
+            layer = Dropout(dropout_h)(layer)
+        layer = Model(layer_input, layer)
         layers += [layer]
-    #combine embedding layers into one function
-    if convNetResidual == 'dense':
-        embedding = DenseResidual((input._keras_shape[2],), layers, False, **{'W_regularizer': l2(l2Reg)})
+
+    # combine embedding layers into one function
+    if conv_net_residual == 'dense':
+        embedding = DenseResidual((input._keras_shape[2],), layers, False, **{'W_regularizer': l2(l2_reg)})
     else:
-        embeddingInput = Input((input._keras_shape[2],))
-        embedding = embeddingInput
+        embedding_input = Input((input._keras_shape[2],))
+        embedding = embedding_input
         for layer in layers:
             embedding = layer(embedding)
-        embedding = Model(embeddingInput, embedding)
-        if convNetResidual:
-            embedding = Residual((input._keras_shape[2],), embedding, True, **{'W_regularizer': l2(l2Reg)})
+        embedding = Model(embedding_input, embedding)
+        if conv_net_residual:
+            embedding = Residual((input._keras_shape[2],), embedding, True, **{'W_regularizer': l2(l2_reg)})
     model = TimeDistributed(embedding)(model)
+
     #deep averaging network
-    model = MaskEatingLambda(TimeDistributedMerge(isMasked = masking, mode = poolingMode), 
+    model = MaskEatingLambda(TimeDistributedMerge(isMasked = masking, mode = pooling_mode),
                              output_shape = lambda shape: (shape[0],)+shape[2:])(model)
     layers = []
-    for i in range(numDeepLayers-1):
-        layerInput = Input((convNetOutSize if i == 0 else deepNetSize,))
+    for i in range(num_deep_layers-1):
+        layerInput = Input((conv_net_out_size if i == 0 else deep_net_size,))
         layer = Maxout(layerInput._keras_shape[1:],
-                       Dense(output_dim=deepNetSize*deepMaxout, activation=activation, 
-                             W_regularizer = l2(l2Reg)), deepMaxout)(layerInput)
-        if dropoutH:
-            layer = Dropout(dropoutH)(layer)
+                       Dense(output_dim=deep_net_size*deep_maxout, activation=activation,
+                             W_regularizer = l2(l2_reg)), deep_maxout)(layer_input)
+        if dropout_h:
+            layer = Dropout(dropout_h)(layer)
         layer = Model(layerInput, layer)
         layers += [layer]
-    if deepResidual == 'dense':
-        mlp = DenseResidual((convNetOutSize,), layers, False, **{'W_regularizer': l2(l2Reg)})
+    if deep_residual == 'dense':
+        mlp = DenseResidual((conv_net_out_size,), layers, False, **{'W_regularizer': l2(l2_reg)})
     else:
-        mlpInput = Input((convNetOutSize,))
-        mlp = mlpInput
+        mlp_input = Input((conv_net_out_size,))
+        mlp = mlp_input
         for layer in layers:
             mlp = layer(mlp)
-        mlp = Model(mlpInput, mlp)
-        if deepResidual:
-            mlp = Residual((convNetOutSize,), mlp, True, **{'W_regularizer': l2(l2Reg)})
+        mlp = Model(mlp_input, mlp)
+        if deep_residual:
+            mlp = Residual((conv_net_out_size,), mlp, True, **{'W_regularizer': l2(l2_reg)})
     model = mlp(model)
-    model = Dense(output_dim=numClasses, activation='softmax' if not stripSoftmax else activation, 
-                    W_regularizer=l2(l2Reg))(model)
+    model = Dense(output_dim=num_classes, activation='softmax' if not strip_softmax else activation,
+                    W_regularizer=l2(l2_reg))(model)
     return model
 
 def makePostureRDANModel(input, numClasses,
@@ -836,13 +839,13 @@ def comprehensivePostEvaluation(directory=defaultDirectory(), trainPer=0.6,
     trainKerasModel(model=model, batchSize=batchSize,
                     numEpochs=numEpochs, learningRate=learningRate,
                     sequences=[struct[0]], classes = struct[1], trainRange=struct[2],
-                    valRange = struct[3], testRange = struct[4],
-                    numClasses = struct[5], 
-                    modelFile = modelFile, callbacks = [EarlyStopping(patience=20)],
+                    valRange=struct[3], testRange = struct[4],
+                    numClasses=struct[5],
+                    modelFile=modelFile, callbacks = [EarlyStopping(patience=20)],
                     sampleWeights=None, 
                     outDirectory='', trainMode=trainMode,
                     custom_objects = custom_objects, 
-                    optimizer = RMSProp(learningRate))
+                    optimizer=RMSProp(learningRate))
 
 def comprehensivePostLOOEvaluation(directory=defaultDirectory(), trainPer=0.6, 
                                    valPer=0.25, testPer=0.15, totalPer=1, 
@@ -1120,23 +1123,23 @@ def buildPostureModel(numClasses, input, modelType = 'cdan',
                                                        bidirectional = True,
                                                        masking = masking,
                                                        **kwargs),
-                'cdan': lambda: makePostureCDANModel(input = input,
-                                                     numCNNLayers=numSpecialLayers,
-                                                     numDeepLayers=numDeepLayers,
-                                                     convNetHiddenSize=numSpecialNodes,
-                                                     convNetOutSize=numSpecialOut,
-                                                     deepNetSize=numDeepNodes,
-                                                     numClasses=numClasses,
-                                                     l2Reg=l2Reg,
-                                                     activation=activation,
-                                                     dropoutH = dropoutH, 
-                                                     stripSoftmax=stripSoftmax,
-                                                     poolingMode = poolingMode,
-                                                     masking = masking,
-                                                     maxout = maxout,
-                                                     convNetResidual = embeddingResidual,
-                                                     deepResidual = deepResidual,
-                                                     **kwargs),
+                'cdan': lambda: make_posture_cdan_model(
+                    input=input, num_cnn_layers=numSpecialLayers,
+                    num_deep_layers=numDeepLayers,
+                    conv_net_hidden_size=numSpecialNodes,
+                    conv_net_outSize=numSpecialOut,
+                    deep_net_size=numDeepNodes,
+                    num_classes=numClasses,
+                    l2_reg=l2Reg,
+                    activation=activation,
+                    dropout_h = dropoutH,
+                    strip_softmax=stripSoftmax,
+                    pooling_mode=poolingMode,
+                    masking=masking,
+                    maxout=maxout,
+                    conv_net_residual=embeddingResidual,
+                    deep_residual=deepResidual,
+                    **kwargs),
                 'fpmeq': lambda: makeFPMEQModel(input = input,
                                               fNumLayers=numSpecialLayers,
                                               numDeepLayers=numDeepLayers,
