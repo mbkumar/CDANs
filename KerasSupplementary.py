@@ -9,11 +9,11 @@ import numpy as np
 import os
 from keras.models import model_from_json, Model, Sequential
 from keras.layers import merge, Input
-from keras.layers.core import Lambda, Masking, Reshape, Dense, Flatten, Dropout
+from keras.layers import Lambda, Masking, Reshape, Dense, Flatten, Dropout
 from keras.layers.noise import GaussianNoise
 from keras.optimizers import RMSprop
 from keras.callbacks import ModelCheckpoint
-from keras import backend as K, activations, regularizers, initializations
+from keras import backend as K, activations, regularizers, initializers
 from keras.engine.topology import Layer, InputSpec
 from keras.regularizers import Regularizer
 from queryUser import queryUser
@@ -244,7 +244,7 @@ class PermutationEquivariant(Layer):
     def __init__(self, output_dim, init = 'glorot_uniform', activation = None, 
                  Gamma_regularizer = None, beta_regularizer = None,
                  maxout = 1, **kwargs):
-        self.init = initializations.get(init)
+        self.init = initializers.get(init)
         self.supports_masking = True
         self.uses_learning_phase = True
         self.output_dim = output_dim
@@ -994,7 +994,8 @@ def getModelGradients(model):
     """
     #get symbolic representations of the gradient updates
     #updates = model.optimizer.get_updates(collect_trainable_weights(model), model.constraints, model.total_loss)
-    grads = model.optimizer.get_gradients(model.total_loss, collect_trainable_weights(model))
+    #grads = model.optimizer.get_gradients(model.total_loss, collect_trainable_weights(model))
+    grads = model.optimizer.get_gradients(model.total_loss, model.trainable_weights)
     GF = [K.function(model.inputs + model.targets + model.sample_weights + [K.learning_phase()], grad) for grad in grads]
     return GF
 
