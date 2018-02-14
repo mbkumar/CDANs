@@ -24,7 +24,7 @@ import six.moves.cPickle as pickle
 import os
 from queryUser import queryUser
 import sys
-from KerasSupplementary import accuracy, balancedAccuracy, weightedAccuracy
+from keras_supplementary import accuracy, balancedAccuracy, weightedAccuracy
 
 def defaultDirectory():
     return '.'

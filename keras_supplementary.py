@@ -32,7 +32,7 @@ TODO: Make compatible with latest version of Keras (2.0+).
       Make compatible with Tensorflow backend (if possible).
 """
 
-def addMaxoutLayer(model, layer, numPieces):
+def add_maxout_layer(model, layer, num_pieces):
     """
     Adds an layer with a maxout wrapper on the output. 
     Maxout computes the piecewise maximum of multiple functions (possibly linear).
@@ -44,14 +44,15 @@ def addMaxoutLayer(model, layer, numPieces):
     See http://arxiv.org/pdf/1302.4389.pdf. 
     """
     model = layer(model)
-    if numPieces <= 0:
+    if num_pieces <= 0:
         raise ValueError("The number of pieces must be positive.")
-    if numPieces > 1: #otherwise, just do normal layer
-        if model._keras_shape[1] % numPieces != 0:
+    if num_pieces > 1: #otherwise, just do normal layer
+        if model._keras_shape[1] % num_pieces != 0:
             raise ValueError("The output_shape of the given layer must be divisible by numPieces.")
-        model = Reshape((numPieces, model._keras_shape[1]/numPieces)+ model._keras_shape[2:])(model)
+        model = Reshape((num_pieces, model._keras_shape[1]/num_pieces)+ model._keras_shape[2:])(model)
         #use a mask-eating lambda instead of normal lambda since normal lambda is bugged in current version of Keras (1.2.1)
-        model = MaskEatingLambda(lambda x: K.max(x, axis=1), output_shape = lambda input_shape: (input_shape[0],) + input_shape[2:])(model)
+        model = MaskEatingLambda(lambda x: K.max(x, axis=1),
+                                 output_shape = lambda input_shape: (input_shape[0],) + input_shape[2:])(model)
     return model
 
 def Maxout(input_shape, layer, numPieces):
@@ -64,7 +65,7 @@ def Maxout(input_shape, layer, numPieces):
     """
     if numPieces > 1:
         inputLayer = Input(input_shape)
-        maxout = addMaxoutLayer(inputLayer, layer, numPieces)
+        maxout = add_maxout_layer(inputLayer, layer, numPieces)
         maxout = Model(inputLayer, maxout)
         return maxout
     else:
@@ -130,6 +131,7 @@ def addDenseResidualLayers(model, layers, identityMappings=[True], **kwargs):
             assert(len(layer.nodes_by_depth[1]) == 1)
             layer = Model(layer.input, layer.nodes_by_depth[1][0].output_tensors) 
         normalModel = layer(model)
+
         #add residual connection to each previous layer
         residualModels = []
         for residualModel, identityMapping in zip(intermediateModels, identityMappings):
@@ -270,7 +272,7 @@ class PermutationEquivariant(Layer):
                                      trainable = True)
         super(PermutationEquivariant, self).build(input_shape)
         
-    def get_output_shape_for(self, input_shape):
+    def compute_output_shape(self, input_shape):
         assert input_shape and len(input_shape) == 3
         return (input_shape[0], input_shape[1], self.output_dim)
 
@@ -321,7 +323,7 @@ class Pairwise(Layer):
             raise ValueError("The number of dimensions of each sample must be greater than or equal to 2")
         super(Pairwise, self).build(input_shape)
 
-    def get_output_shape_for(self, input_shape):
+    def compute_output_shape(self, input_shape):
         return (input_shape[0], input_shape[1]*input_shape[1], 2*input_shape[2]) + input_shape[3:]
     
     def compute_mask(self, x, input_mask = None):
@@ -417,7 +419,7 @@ class MaskedPooling(Layer):
         self.input_spec = [InputSpec(shape=input_shape)]
         super(MaskedPooling, self).build(input_shape)
 
-    def get_output_shape_for(self, input_shape):
+    def compute_output_shape(self, input_shape):
         return (input_shape[0], (input_shape[1]-1)/self.stride+1) + input_shape[2:]
 
     def compute_mask(self, input, input_mask = None):
@@ -612,7 +614,7 @@ class MaskEatingLambda(Layer):
             return self.function(x, mask)
     
     #from Keras source for normal Lambda layer
-    def get_output_shape_for(self, input_shape):
+    def compute_output_shape(self, input_shape):
         if self._output_shape is None:
             # if TensorFlow, we can infer the output shape directly:
             if K._BACKEND == 'tensorflow':
